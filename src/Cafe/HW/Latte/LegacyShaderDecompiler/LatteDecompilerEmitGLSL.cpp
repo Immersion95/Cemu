@@ -4115,6 +4115,33 @@ void LatteDecompiler_emitGLSLShader(LatteDecompilerShaderContext* shaderContext,
 			}
 		}
 	}
+	// Supply the DEFAULT_VAL for pixel inputs without a producer-side export.
+	// The relevant SPI_PS_INPUT_CNTL registers are already incorporated into the VS hash.
+	if (shader->shaderType == LatteConst::ShaderType::Vertex && !shaderContext->options->usesGeometryShader)
+	{
+		auto* psInputTable = LatteSHRC_GetPSInputTable();
+		const char* defaultValues[] = {
+			"vec4(0.0)", "vec4(0.0, 0.0, 0.0, 1.0)",
+			"vec4(1.0, 1.0, 1.0, 0.0)", "vec4(1.0)"
+		};
+		uint32 missingOutputCount = 0;
+		src->add("#ifdef VULKAN" _CRLF);
+		for (sint32 i = 0; i < psInputTable->count; i++)
+		{
+			const auto& input = psInputTable->import[i];
+			if (input.semanticId > LATTE_ANALYZER_IMPORT_INDEX_PARAM_MAX ||
+				!LatteDecompiler::_isMissingVSOutput(shaderContext, input.semanticId))
+				continue;
+			src->addFmt("passParameterSem{} = {};" _CRLF, input.semanticId,
+				defaultValues[input.defaultValue & 3]);
+			missingOutputCount++;
+		}
+		src->add("#endif" _CRLF);
+		if (missingOutputCount && g_renderer->GetType() == RendererAPI::Vulkan)
+			cemuLog_log(LogType::Force, "[Immersion95 Vulkan shader interface] VS {:016x}: filled {} missing output(s)",
+				shaderContext->shaderBaseHash, missingOutputCount);
+	}
+
 	for(auto& cfInstruction : shaderContext->cfInstructions)
 		LatteDecompiler_emitClauseCode(shaderContext, &cfInstruction, false);
 	if( shader->shaderType == LatteConst::ShaderType::Geometry )

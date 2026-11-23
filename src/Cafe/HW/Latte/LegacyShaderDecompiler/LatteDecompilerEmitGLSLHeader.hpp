@@ -374,6 +374,20 @@ namespace LatteDecompiler
 		}
 	}
 
+	// A pixel shader can request a parameter that the vertex shader does not export.
+	// Vulkan requires the VS/PS interface to be complete even when Latte uses DEFAULT_VAL.
+	bool _isMissingVSOutput(LatteDecompilerShaderContext* shaderContext, uint32 semanticId)
+	{
+		const auto parameterMask = shaderContext->shader->outputParameterMask;
+		for (uint32 i = 0; i < 32; i++)
+		{
+			if ((parameterMask & (1u << i)) &&
+				_getVertexShaderOutParamSemanticId(shaderContext->contextRegisters, i) == semanticId)
+				return false;
+		}
+		return true;
+	}
+
 	void _emitVSExports(LatteDecompilerShaderContext* shaderContext)
 	{
 		auto* src = shaderContext->shaderSource;
@@ -407,6 +421,24 @@ namespace LatteDecompiler
 			src->add("out");
 			src->addFmt(" vec4 passParameterSem{};" _CRLF, psInputTable->import[psInputIndex].semanticId);
 		}
+
+		// Supply the missing VS outputs without changing the fragment shader interface.
+		// The fallback values are derived from SPI_PS_INPUT_CNTL, which is part of the VS key.
+		src->add("#ifdef VULKAN" _CRLF);
+		for (sint32 i = 0; i < psInputTable->count; i++)
+		{
+			const auto& input = psInputTable->import[i];
+			if (input.semanticId > LATTE_ANALYZER_IMPORT_INDEX_PARAM_MAX ||
+				!_isMissingVSOutput(shaderContext, input.semanticId))
+				continue;
+			src->addFmt("layout(location = {}) ", i);
+			if (input.isFlat)
+				src->add("flat ");
+			if (input.isNoPerspective)
+				src->add("noperspective ");
+			src->addFmt("out vec4 passParameterSem{};" _CRLF, input.semanticId);
+		}
+		src->add("#endif" _CRLF);
 	}
 
 	void _emitPSImports(LatteDecompilerShaderContext* shaderContext)

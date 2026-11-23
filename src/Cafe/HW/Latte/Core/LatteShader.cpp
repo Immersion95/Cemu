@@ -271,6 +271,7 @@ void LatteShader_CreatePSInputTable(LatteShaderPSInputTable* psInputTable, uint3
 		uint32 psSemanticId = (psInputControl & 0xFF);
 
 		uint8 defaultValue = (psInputControl>>8)&3;
+		psInputTable->import[f].defaultValue = defaultValue;
 		// default:
 		// 0 -> 0.0 0.0 0.0 0.0
 		// 1 -> 0.0 0.0 0.0 1.0
