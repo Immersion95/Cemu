@@ -11,6 +11,8 @@
 #include "Cafe/HW/Latte/Common/RegisterSerializer.h"
 #include "HW/Latte/Renderer/RendererCore.h"
 
+#include <algorithm>
+
 RendererShaderVk* rectsEmulationGS_generate(LatteDecompilerShader* vertexShader, const LatteContextRegister& latteRegister)
 {
 	std::string gsSrc;
@@ -387,7 +389,14 @@ void PipelineCompiler::InitVertexInputState(const LatteContextRegister& latteReg
 			entry.offset = attr.offset;
 			entry.binding = attr.attributeBufferIndex;
 			entry.format = GetVertexFormat(attr.format);
-			vertexInputAttributeDescription.emplace_back(entry);
+			// Vulkan requires unique vertex input locations. Repeated fetches
+			// use the final assignment, matching the shader attribute mapping.
+			auto existingAttribute = std::find_if(vertexInputAttributeDescription.begin(), vertexInputAttributeDescription.end(),
+				[&entry](const VkVertexInputAttributeDescription& candidate) { return candidate.location == entry.location; });
+			if (existingAttribute != vertexInputAttributeDescription.end())
+				*existingAttribute = entry;
+			else
+				vertexInputAttributeDescription.emplace_back(entry);
 
 			if (fetchType.has_value())
 				cemu_assert_debug(fetchType == attr.fetchType);
