@@ -292,7 +292,18 @@ namespace LatteDecompiler
 			}
 			else
 			{
+				// Only the final guest position-producing stage uses native clip space.
+				// Preserve the legacy VS convention when feeding a guest geometry shader.
+				const bool isFinalGuestStage = decompilerContext->shaderType == LatteConst::ShaderType::Geometry || !decompilerContext->options->usesGeometryShader;
+				if (isFinalGuestStage)
+				{
+					src->add("#ifdef CEMU_NATIVE_DEPTH_CLIP_CONTROL" _CRLF);
+					src->add("#define SET_POSITION(_v) gl_Position = _v" _CRLF);
+					src->add("#else" _CRLF);
+				}
 				src->add("#define SET_POSITION(_v) gl_Position = _v; gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0" _CRLF);
+				if (isFinalGuestStage)
+					src->add("#endif" _CRLF);
 			}
 
 			if (decompilerContext->shaderType == LatteConst::ShaderType::Vertex || decompilerContext->shaderType == LatteConst::ShaderType::Geometry)

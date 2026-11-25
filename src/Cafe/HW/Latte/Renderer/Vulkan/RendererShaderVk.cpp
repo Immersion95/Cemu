@@ -301,6 +301,9 @@ void RendererShaderVk::CompileInternal(bool isRenderThread)
 	}
 
 	glslang::TShader Shader(state);
+	// Do not change replacement shaders or internal presentation/copy shaders.
+	if (m_isGameShader && !m_isGfxPackShader && m_type != ShaderType::kFragment && VulkanRenderer::GetInstance()->HasNativeDepthClipControl())
+		Shader.setPreamble("#define CEMU_NATIVE_DEPTH_CLIP_CONTROL 1\n");
 	const char* cstr = m_glslCode.c_str();
 	Shader.setStrings(&cstr, 1);
 	Shader.setEnvInput(glslang::EShSourceGlsl, state, glslang::EShClientVulkan, 100);
@@ -318,6 +321,7 @@ void RendererShaderVk::CompileInternal(bool isRenderThread)
 		return;
 	}
 
+	Shader.setPreamble("");
 	const char* PreprocessedCStr = PreprocessedGLSL.c_str();
 	Shader.setStrings(&PreprocessedCStr, 1);
 	EShMessages messagesParseLink = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
@@ -437,7 +441,9 @@ void RendererShaderVk::ShaderCacheLoading_begin(uint64 cacheTitleId)
 		s_spirvCache = nullptr;
 	}
 	uint32 spirvCacheMagic = GeneratePrecompiledCacheId();
-	const std::string cacheFilename = fmt::format("{:016x}_spirv.bin", cacheTitleId);
+	// Keep native-depth SPIR-V separate from the legacy cache, including on GPU changes.
+	const std::string cacheFilename = fmt::format("{:016x}{}_spirv.bin", cacheTitleId,
+		VulkanRenderer::GetInstance()->HasNativeDepthClipControl() ? "_native_depth" : "");
 	const fs::path cachePath = ActiveSettings::GetCachePath("shaderCache/precompiled/{}", cacheFilename);
 	s_spirvCache = FileCache::Open(cachePath, true, spirvCacheMagic);
 	if (s_spirvCache == nullptr)

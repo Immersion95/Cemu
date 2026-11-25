@@ -467,6 +467,7 @@ private:
 			bool shader_float_controls = false; // VK_KHR_shader_float_controls
 			bool present_wait = false; // VK_KHR_present_wait
 			bool depth_clip_enable = false; // VK_EXT_depth_clip_enable
+			bool depth_clip_control = false; // VK_EXT_depth_clip_control
 			bool pipeline_robustness = false; // VK_EXT_pipeline_robustness
 			bool vertex_attribute_divisor = false; // VK_KHR_vertex_attribute_divisor (with supportsNonZeroFirstInstance, vertexAttributeInstanceRateDivisor and maxVertexAttribDivisor >= 0xFFFF)
 			bool attachment_feedback_loop_layout = false; // VK_EXT_attachment_feedback_loop_layout
@@ -955,6 +956,7 @@ private:
 
 public:
 	bool GetDisableMultithreadedCompilation() const { return m_featureControl.disableMultithreadedCompilation; }
+	bool HasNativeDepthClipControl() const { return m_featureControl.deviceExtensions.depth_clip_control; }
 	bool HasSPRIVRoundingModeRTE32() const { return m_featureControl.shaderFloatControls.shaderRoundingModeRTEFloat32; }
 	bool IsDebugMarkersEnabled() const { return m_featureControl.usingDebugMarkerTool; }
 	bool IsTracingToolEnabled() const { return m_featureControl.usingTracingTool; }

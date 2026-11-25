@@ -502,11 +502,22 @@ void PipelineCompiler::InitInputAssemblyState(const Latte::LATTE_VGT_PRIMITIVE_T
 	}
 }
 
-void PipelineCompiler::InitViewportState()
+void PipelineCompiler::InitViewportState(const LatteContextRegister& latteRegister, const PipelineInfo* pipelineInfo)
 {
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.viewportCount = 1;
 	viewportState.scissorCount = 1;
+
+	// Custom position shaders retain their existing Vulkan clip-space convention.
+	// The rectangle emulation GS inherits the convention of the vertex shader.
+	const auto* positionShader = pipelineInfo->geometryShader ? pipelineInfo->geometryShader : pipelineInfo->vertexShader;
+	if (VulkanRenderer::GetInstance()->HasNativeDepthClipControl() &&
+		!latteRegister.PA_CL_CLIP_CNTL.get_DX_CLIP_SPACE_DEF() && !positionShader->isCustomShader)
+	{
+		m_viewportDepthClipControl.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_DEPTH_CLIP_CONTROL_CREATE_INFO_EXT;
+		m_viewportDepthClipControl.negativeOneToOne = VK_TRUE;
+		viewportState.pNext = &m_viewportDepthClipControl;
+	}
 }
 
 void PipelineCompiler::InitRasterizerState(const LatteContextRegister& latteRegister, VulkanRenderer* vkRenderer, bool isPrimitiveRect, bool& usesDepthBias)
@@ -876,7 +887,7 @@ bool PipelineCompiler::InitFromCurrentGPUState(PipelineInfo* pipelineInfo, const
 	pipelineInfo->primitiveMode = primitiveMode;
 	InitVertexInputState(latteRegister, pipelineInfo->vertexShader, pipelineInfo->fetchShader);
 	InitInputAssemblyState(primitiveMode);
-	InitViewportState();
+	InitViewportState(latteRegister, pipelineInfo);
 	bool usesDepthBias = false;
 	InitRasterizerState(latteRegister, vkRenderer, isPrimitiveRect, usesDepthBias);
 	bool usesBlendConstants = false;

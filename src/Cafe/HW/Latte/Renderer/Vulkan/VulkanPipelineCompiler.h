@@ -23,7 +23,7 @@ private:
 
 	void InitVertexInputState(const LatteContextRegister& latteRegister, LatteDecompilerShader* vertexShader, LatteFetchShader* fetchShader);
 	void InitInputAssemblyState(const Latte::LATTE_VGT_PRIMITIVE_TYPE::E_PRIMITIVE_TYPE primitiveMode);
-	void InitViewportState();
+	void InitViewportState(const LatteContextRegister& latteRegister, const PipelineInfo* pipelineInfo);
 	void InitRasterizerState(const LatteContextRegister& latteRegister, VulkanRenderer* vkRenderer, bool isPrimitiveRect, bool& usesDepthBias);
 	void InitBlendState(const LatteContextRegister& latteRegister, PipelineInfo* pipelineInfo, bool& usesBlendConstants, VKRObjectRenderPass* renderPassObj);
 	void InitDescriptorSetLayouts(VulkanRenderer* vkRenderer, PipelineInfo* vkrPipelineInfo, LatteDecompilerShader* vertexShader, LatteDecompilerShader* pixelShader, LatteDecompilerShader* geometryShader);
@@ -69,6 +69,7 @@ public:
 
 	/* viewport state */
 	VkPipelineViewportStateCreateInfo viewportState{};
+	VkPipelineViewportDepthClipControlCreateInfoEXT m_viewportDepthClipControl{};
 
 	/* rasterizer state */
 	VkPipelineRasterizationStateCreateInfo rasterizer{};

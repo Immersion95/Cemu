@@ -55,6 +55,7 @@ const  std::vector<const char*> kOptionalDeviceExtensions =
 	VK_KHR_PRESENT_WAIT_EXTENSION_NAME,
 	VK_KHR_PRESENT_ID_EXTENSION_NAME,
 	VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME,
+	VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME,
 	VK_EXT_PIPELINE_ROBUSTNESS_EXTENSION_NAME,
 	VK_KHR_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME,
 	VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME,
@@ -301,6 +302,14 @@ void VulkanRenderer::GetDeviceFeatures()
 		prevStruct = &vertexAttributeDivisorFeature;
 	}
 
+	VkPhysicalDeviceDepthClipControlFeaturesEXT depthClipControlFeature{};
+	if (m_featureControl.deviceExtensions.depth_clip_control)
+	{
+		depthClipControlFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT;
+		depthClipControlFeature.pNext = prevStruct;
+		prevStruct = &depthClipControlFeature;
+	}
+
 	VkPhysicalDeviceFeatures2 physicalDeviceFeatures2{};
 	physicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	physicalDeviceFeatures2.pNext = prevStruct;
@@ -334,6 +343,9 @@ void VulkanRenderer::GetDeviceFeatures()
 	vkGetPhysicalDeviceProperties2(m_physicalDevice, &prop2);
 
 	/* Determine which subfeatures we can use */
+
+	m_featureControl.deviceExtensions.depth_clip_control = m_featureControl.deviceExtensions.depth_clip_control && depthClipControlFeature.depthClipControl == VK_TRUE;
+	cemuLog_log(LogType::Force, "Vulkan: native depth clip control: {}", HasNativeDepthClipControl() ? "enabled" : "unavailable (shader fallback)");
 
 	m_featureControl.deviceExtensions.pipeline_creation_cache_control = pcc.pipelineCreationCacheControl;
 	m_featureControl.deviceExtensions.custom_border_color_without_format = m_featureControl.deviceExtensions.custom_border_color && bcf.customBorderColorWithoutFormat;
@@ -707,6 +719,16 @@ VulkanRenderer::VulkanRenderer() : Renderer(RendererAPI::Vulkan)
 		cemuLog_log(LogType::Force, "vertexPipelineStoresAndAtomics not supported by the driver. Games which use the streamout feature will not render correctly");
 
 	void* deviceExtensionFeatures = nullptr;
+
+	// enable VK_EXT_depth_clip_control
+	VkPhysicalDeviceDepthClipControlFeaturesEXT depthClipControlFeature{};
+	if (HasNativeDepthClipControl())
+	{
+		depthClipControlFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT;
+		depthClipControlFeature.pNext = deviceExtensionFeatures;
+		deviceExtensionFeatures = &depthClipControlFeature;
+		depthClipControlFeature.depthClipControl = VK_TRUE;
+	}
 
 	// enable VK_EXT_pipeline_creation_cache_control
 	VkPhysicalDevicePipelineCreationCacheControlFeaturesEXT cacheControlFeature{};
@@ -1357,6 +1379,8 @@ VkDeviceCreateInfo VulkanRenderer::CreateDeviceCreateInfo(const std::vector<VkDe
 		used_extensions.emplace_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 	if (m_featureControl.deviceExtensions.depth_clip_enable)
 		used_extensions.emplace_back(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
+	if (HasNativeDepthClipControl())
+		used_extensions.emplace_back(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
 	if (m_featureControl.deviceExtensions.present_wait)
 	{
 		used_extensions.emplace_back(VK_KHR_PRESENT_ID_EXTENSION_NAME);
@@ -1467,6 +1491,7 @@ bool VulkanRenderer::CheckDeviceExtensionSupport(const VkPhysicalDevice device, 
 	info.deviceExtensions.shader_float_controls = isExtensionAvailable(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 	info.deviceExtensions.dynamic_rendering = false; // isExtensionAvailable(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
 	info.deviceExtensions.depth_clip_enable = isExtensionAvailable(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
+	info.deviceExtensions.depth_clip_control = isExtensionAvailable(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
 	info.deviceExtensions.pipeline_robustness = isExtensionAvailable(VK_EXT_PIPELINE_ROBUSTNESS_EXTENSION_NAME);
 	info.deviceExtensions.vertex_attribute_divisor = isExtensionAvailable(VK_KHR_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME);
 	info.deviceExtensions.attachment_feedback_loop_layout = isExtensionAvailable(VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME);
@@ -3403,7 +3428,7 @@ VkDescriptorSet VulkanRenderer::backbufferBlit_createDescriptorSet(VkDescriptorS
 
 void VulkanRenderer::renderTarget_setViewport(float x, float y, float width, float height, float nearZ, float farZ, bool halfZ)
 {
-	// the Vulkan renderer handles halfZ in the vertex shader
+	// The graphics pipeline selects the native clip space or the legacy shader conversion.
 
 	float vpNewX = x;
 	float vpNewY = y + height;
